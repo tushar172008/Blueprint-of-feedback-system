@@ -2,18 +2,6 @@
 
 Threadline is a customer feedback website concept for small businesses, inspired by the review experiences found on larger shopping platforms such as Amazon and Myntra. It gives a business a branded place to collect customer opinions about products and service, understand satisfaction, and use feedback to improve what it offers.
 
-## What the website includes
-
-- A customer feedback form with a one-to-five-star rating, product name, category, fit, written comments, and up to two photos.
-- A store dashboard showing review totals, average rating, recent activity, rating distribution, and a 14-day trend.
-- A PDF export for a customer satisfaction report.
-- A responsive Threadline storefront and an animated product presentation.
-
-## Current limitations
-
-This project currently consists of `index.html`. Review submission and the staff dashboard expect a signed-in environment that provides the `claude` user, database, and download services. Opening the page in a regular browser does not provide those services, so submitting reviews and using the live dashboard will not work unless the page is hosted in a compatible environment.
-
-The current page does not yet let a business edit an existing review or search and filter reviews by business/brand name or year. Those are useful next features for a small-business feedback system, but they need to be implemented along with suitable database fields and access controls before being advertised as available.
 
 ## Run locally
 
