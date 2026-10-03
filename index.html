@@ -90,7 +90,7 @@ footer{padding:30px;text-align:center;color:var(--mut)}
 <div class="grid2"><div class="kpi"><b style="font-size:1.1rem">Rating distribution</b><div id="dist"></div></div><div class="kpi"><b style="font-size:1.1rem">Daily average (14 days)</b><svg id="tr" viewBox="0 0 300 120" width="100%" role="img" aria-label="Trend of daily average rating"></svg></div></div>
 <h3>Recent reviews</h3><div class="list" id="ls"></div></div></section>
 </main>
-<footer>© Threadline · Reviews are stored securely and visible only to store staff.</footer>
+<footer>© Threadline · Reviews are stored locally in this browser.</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -133,21 +133,47 @@ const shrink=f=>new Promise(res=>{const im=new Image,u=URL.createObjectURL(f);im
 $("#ph").addEventListener("change",async e=>{photos=(await Promise.all([...e.target.files].slice(0,2).filter(f=>f.type.startsWith("image/")).map(shrink))).filter(Boolean);
 $("#th").innerHTML=photos.map((p,i)=>`<img src="${p}" alt="Your photo ${i+1}">`).join("")});
 /* backend */
-let db=null,user=null,uid=null,all=[],isOwner=false;
+let all=JSON.parse(localStorage.getItem("threadline_reviews")||"[]"),isOwner=true;
 const msg=(t,c)=>{const m=$("#m");m.textContent=t;m.className="msg "+c};
-async function init(){
- try{user=await claude.use("user");db=await claude.use("db");uid=user?await user.id():null;isOwner=!!(user&&user.canEdit());}catch(e){}
- if(isOwner){$("#owner").hidden=false;sub()}
+
+function saveReviews(){
+ localStorage.setItem("threadline_reviews",JSON.stringify(all));
 }
-function sub(){if(!db||sub.d)return;sub.d=1;db.collection("reviews").orderBy("ts","desc").limit(500).onSnapshot(s=>{all=[];s.forEach?s.forEach(d=>all.push(d.data?d.data():d)):(s.docs||[]).forEach(d=>all.push(d.data()));render()},()=>{$("#lv").textContent="Offline"})}
+
+function sub(){
+ $("#lv").textContent="● Local";
+ render();
+}
+
 $("#f").addEventListener("submit",async e=>{e.preventDefault();
  if(!rating)return msg("Please choose a star rating.","err");
- if(!db)return msg("Sign in to claude.ai to submit — the secure database is unavailable.","err");
  const b=$("#go");b.disabled=true;
- const rec={rating,item:$("#item").value.trim().slice(0,80),cat:$("#cat").value,fit:$("#fit").value,text:$("#txt").value.trim().slice(0,600),photos,ts:Date.now(),by:uid};
- try{await db.collection("reviews").doc("r"+rec.ts+Math.random().toString(36).slice(2,6)).set(rec);msg("Thank you! Your review was submitted.","ok");showMine(rec);e.target.reset();photos=[];$("#th").innerHTML="";rating=0;st.querySelectorAll("label").forEach(l=>l.classList.remove("on"))}
- catch(x){msg("Couldn't submit — you may need contributor access. Please ask staff.","err")}
- b.disabled=false});
+ const rec={
+   rating,
+   item:$("#item").value.trim().slice(0,80),
+   cat:$("#cat").value,
+   fit:$("#fit").value,
+   text:$("#txt").value.trim().slice(0,600),
+   photos,
+   ts:Date.now()
+ };
+ all.unshift(rec);
+ saveReviews();
+ msg("Thank you! Your review was submitted.","ok");
+ showMine(rec);
+ e.target.reset();
+ photos=[];
+ $("#th").innerHTML="";
+ rating=0;
+ st.querySelectorAll("label").forEach(l=>l.classList.remove("on"));
+ render();
+ b.disabled=false;
+});
+
+function init(){
+ $("#owner").hidden=false;
+ sub();
+}
 function showMine(r){const m=$("#mine");m.insertAdjacentHTML("afterbegin",`<article class="rev mine"><h3>Your review</h3><b style="color:var(--ac)" aria-label="${r.rating} out of 5">${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</b> <small>${new Date(r.ts).toLocaleString()}</small><div><b>${esc(r.item)||"—"}</b> · ${esc(r.cat)} · ${esc(r.fit)}</div><p>${esc(r.text)||"(no comment)"}</p>${r.photos.map((p,i)=>`<img src="${p}" alt="Your photo ${i+1}">`).join("")}</article>`);m.firstElementChild.scrollIntoView({behavior:"smooth",block:"center"})}
 /* dashboard */
 const avg=a=>a.length?(a.reduce((s,r)=>s+r.rating,0)/a.length):0;
@@ -163,12 +189,12 @@ function render(){
 $("#owner").onclick=()=>{$("#cust").style.display="none";$("#dash").style.display="block";scrollTo(0,0);render()};
 $("#back").onclick=()=>{$("#dash").style.display="none";$("#cust").style.display="block";scrollTo(0,0)};
 $("#pdf").onclick=async()=>{
- try{const {jsPDF}=window.jspdf,p=new jsPDF(),dl=await claude.use("downloads");let y=18;
+ try{const {jsPDF}=window.jspdf,p=new jsPDF();let y=18;
  p.setFontSize(18);p.text("Threadline — Customer Satisfaction Report",14,y);y+=8;p.setFontSize(10);p.text("Generated "+new Date().toLocaleString(),14,y);y+=10;
  const n=all.length;p.setFontSize(12);[`Total reviews: ${n}`,`Average rating: ${avg(all).toFixed(2)} / 5`,`Last 7 days: ${all.filter(r=>r.ts>Date.now()-6048e5).length}`,`Satisfied (4-5 stars): ${n?Math.round(all.filter(r=>r.rating>=4).length/n*100):0}%`].forEach(t=>{p.text(t,14,y);y+=7});
  y+=3;p.text("Rating distribution",14,y);y+=7;[5,4,3,2,1].forEach(s=>{const c=all.filter(r=>r.rating===s).length;p.text(`${s} star: ${c}`,18,y);p.rect(45,y-3.5,n?c/n*100:0,4,"F");y+=6});
  y+=6;p.text("Recent reviews",14,y);y+=7;p.setFontSize(9);
  for(const r of all.slice(0,40)){const t=p.splitTextToSize(`${new Date(r.ts).toLocaleDateString()} | ${r.rating}* | ${r.item||"-"} | ${r.cat} | ${r.fit} | ${r.text}`,180);if(y+t.length*4.5>285){p.addPage();y=18}p.text(t,14,y);y+=t.length*4.5+2}
- const buf=p.output("arraybuffer");if(!dl)return alert("Download unavailable in this view.");await dl.save({filename:"threadline-report.pdf",data:buf})}catch(e){if(!e||e.code!=="declined")alert("Couldn't export the PDF.")}};
+ p.save("threadline-report.pdf")}catch(e){alert("Couldn't export the PDF.")}};
 init();
 </script></body></html>
